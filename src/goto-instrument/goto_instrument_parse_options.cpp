@@ -53,6 +53,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <analyses/reaching_definitions.h>
 #include <analyses/dependence_graph.h>
 #include <analyses/constant_propagator.h>
+#include <analyses/constant_set_propagator.h>
 #include <analyses/is_threaded.h>
 
 #include <cbmc/version.h>
@@ -1152,6 +1153,17 @@ void goto_instrument_parse_optionst::instrument_goto_program()
     remove_skip(goto_functions);
   }
 
+  if(cmdline.isset("constant-set-propagator"))
+  {
+    do_indirect_call_and_rtti_removal();
+
+    status() << "Propagating Sets of Constants" << eom;
+
+    constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns);
+
+    remove_skip(goto_functions);
+  }
+
   // add generic checks, if needed
   goto_check(ns, options, goto_functions);
 
@@ -1560,6 +1572,7 @@ void goto_instrument_parse_optionst::help()
     "\n"
     "Further transformations:\n"
     " --constant-propagator        propagate constants and simplify expressions\n" // NOLINT(*)
+    " --constant-propagator        propagate sets of constants and simplify expressions\n" // NOLINT(*)
     " --inline                     perform full inlining\n"
     " --partial-inline             perform partial inlining\n"
     " --function-inline <function> transitively inline all calls <function> makes\n" // NOLINT(*)

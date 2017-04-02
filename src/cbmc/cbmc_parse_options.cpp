@@ -52,6 +52,9 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <langapi/mode.h>
 
+#include <analyses/constant_propagator.h>
+#include <analyses/constant_set_propagator.h>
+
 #include "cbmc_solvers.h"
 #include "cbmc_parse_options.h"
 #include "bmc.h"
@@ -890,6 +893,20 @@ bool cbmc_parse_optionst::process_goto_program(
     remove_exceptions(symbol_table, goto_functions);
     // Similar removal of RTTI inspection:
     remove_instanceof(symbol_table, goto_functions);
+
+    if(cmdline.isset("constant-propagator"))
+    {
+      status() << "Propagating Constants" << eom;
+      constant_propagator_ait constant_propagator_ai(goto_functions, ns);
+      remove_skip(goto_functions);
+    }
+
+    if(cmdline.isset("constant-set-propagator"))
+    {
+      status() << "Propagating Constants" << eom;
+      constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns);
+      remove_skip(goto_functions);
+    }
 
     // do partial inlining
     status() << "Partial Inlining" << eom;

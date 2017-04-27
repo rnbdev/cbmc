@@ -158,13 +158,15 @@ void constant_set_propagator_domaint::transform(
       std::cout << "goto from -- " << from->location_number << "\n";
       std::cout << "goto backward --" << from->is_backwards_goto() << "\n";
       std::cout << "goto body till -- " << std::prev(from->get_target())->location_number << "\n";
-      locationt goto_body_end = std::prev(from->get_target());
-      if(!from->is_backwards_goto() && goto_body_end->is_backwards_goto() && goto_body_end->get_target() == from)
-      {
-        std::cout << "found loop -- " << from->location_number << "\n";
-        static_cast<constant_set_propagator_ait &>(ai).loophead_list.insert(from);
-      }
     #endif
+    locationt goto_body_end = std::prev(from->get_target());
+    if(!from->is_backwards_goto() && goto_body_end->is_backwards_goto() && goto_body_end->get_target() == from)
+    {
+      #ifdef DEBUG
+      std::cout << "found loop -- " << from->location_number << "\n";
+      #endif
+      static_cast<constant_set_propagator_ait &>(ai).loophead_list.insert(from);
+    }
 
     two_way_propagate_rec(g, ns);
   }
@@ -175,7 +177,6 @@ void constant_set_propagator_domaint::transform(
   }
   else if(from->is_function_call()) // todo: if no function body
   {
-    const auto &functioncall = from->code;
     const code_function_callt &code_function_call = to_code_function_call(from->code);
     const exprt &function=code_function_call.function();
 
@@ -197,7 +198,7 @@ void constant_set_propagator_domaint::transform(
         // values.set_to_top();
         #ifdef DEBUG
           if(code_function_call.lhs().is_not_nil()) std::cout << "lhs " << from_expr(ns, "", code_function_call.lhs())<< "\n";
-          std::cout << "function call -- " << from_expr(ns, "", functioncall) << "\n";
+          std::cout << "function call -- " << from_expr(ns, "", from->code) << "\n";
           std::cout << "function name-- " << from_expr(ns, "", function) << "\n";
           for(const exprt e: code_function_call.arguments()){
             std::cout << "arg : " << from_expr(ns, "", e) << "\n";
@@ -1053,10 +1054,8 @@ void constant_set_propagator_ait::replace(
         }
       }
       if(!empty_and){
-        goto_programt::targett t1 = body.insert_before(it);
-        t1->make_assumption(exprt(assume_st));
-        // it = t1; // looks like does not need it
-        // it++;
+        body.insert_before_swap(it);
+        it->make_assumption(assume_st);
       }
     }
   }

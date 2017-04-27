@@ -2,7 +2,7 @@
 
 Module: Abstract Interpretation
 
-Author: Daniel Kroening, kroening@kroening.com
+Author: Daniel Kroening, kroening@kroening.com, Ranadeep
 
 \*******************************************************************/
 
@@ -11,8 +11,15 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <map>
 #include <iosfwd>
+#include <utility>
 
 #include <goto-programs/goto_model.h>
+
+// #define DEBUG
+
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 // forward reference
 class ai_baset;
@@ -63,6 +70,8 @@ public:
   // a reasonable entry-point state
   virtual void make_entry()=0;
 
+  virtual bool is_equal(locationt l, const ai_baset &ai){return false;}
+
   // also add
   //
   //   bool merge(const T &b, locationt from, locationt to);
@@ -104,6 +113,9 @@ public:
     initialize(goto_functions);
     entry_state(goto_functions);
     fixedpoint(goto_functions, ns);
+    #ifdef DEBUG
+      output(ns, goto_functions, std::cout);
+    #endif
   }
 
   void operator()(const goto_modelt &goto_model)
@@ -156,6 +168,15 @@ public:
   {
     output(ns, goto_function.body, "", out);
   }
+
+  // ranadeep
+  virtual void push_function_call_location_to_stack(locationt from){}
+  virtual void pop_function_call_location_from_stack(){}
+  virtual locationt get_top_function_call_location_from_stack(){}
+  virtual bool is_cached(const goto_functionst::function_mapt::const_iterator f_it){}
+  virtual void summarize_from_cache(const goto_functionst::function_mapt::const_iterator f_it){}
+  virtual void put_new_in_cache(const goto_functionst::function_mapt::const_iterator f_it){}
+  bool body_available = true;
 
 protected:
   // overload to add a factory
@@ -239,6 +260,8 @@ protected:
     const namespacet &ns)=0;
   virtual statet &get_state(locationt l)=0;
   virtual const statet &find_state(locationt l) const=0;
+  virtual statet &get_merged_state(locationt l)=0;
+  virtual const statet &find_merged_state(locationt l) const=0;
   virtual statet* make_temporary_state(const statet &s)=0;
 };
 
@@ -275,18 +298,53 @@ public:
   void clear() override
   {
     state_map.clear();
+    merged_state_map.clear();
+    function_call_location_stack.clear();
     ai_baset::clear();
   }
 
 protected:
   typedef std::unordered_map<locationt, domainT, const_target_hash> state_mapt;
   state_mapt state_map;
+  state_mapt merged_state_map;
+
+  // ranadeep
+  typedef std::vector<locationt> function_call_location_stackt;
+  function_call_location_stackt function_call_location_stack;
 
   // this one creates states, if need be
   virtual statet &get_state(locationt l) override
   {
     return state_map[l]; // calls default constructor
   }
+
+  // this one creates states, if need be
+  virtual statet &get_merged_state(locationt l) override
+  {
+    return merged_state_map[l]; // calls default constructor
+  }
+
+
+  virtual void push_function_call_location_to_stack(locationt t) override {
+    #ifdef DEBUG
+    std::cout << "pushing location to stack -- " << t->location_number << "\n";
+    #endif
+    function_call_location_stack.push_back(t);
+  }
+
+  virtual void pop_function_call_location_from_stack() override {
+    #ifdef DEBUG
+    std::cout << "popping location from stack -- " << function_call_location_stack.back()->location_number << "\n";
+    #endif
+    function_call_location_stack.pop_back();
+  }
+
+
+  virtual locationt get_top_function_call_location_from_stack() override {
+    return function_call_location_stack.back();
+  }
+
+
 
   // this one just finds states
   const statet &find_state(locationt l) const override
@@ -298,8 +356,21 @@ protected:
     return it->second;
   }
 
+  // this one just finds states
+  const statet &find_merged_state(locationt l) const override
+  {
+    typename state_mapt::const_iterator it=merged_state_map.find(l);
+    if(it==merged_state_map.end())
+      throw "failed to find state";
+
+    return it->second;
+  }
+
   bool merge(const statet &src, locationt from, locationt to) override
   {
+    statet &dest_ = get_merged_state(to);
+    static_cast<domainT &>(dest_).merge(
+      static_cast<const domainT &>(src), from, to);
     statet &dest=get_state(to);
     return static_cast<domainT &>(dest).merge(
       static_cast<const domainT &>(src), from, to);

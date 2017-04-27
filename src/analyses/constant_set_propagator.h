@@ -21,6 +21,12 @@ public:
     locationt,
     ai_baset &,
     const namespacet &) final;
+  void transform_with_summary (
+      locationt from,
+      locationt to,
+      ai_baset &ai,
+      const namespacet &ns,
+      bool use_merged_summary);
   void output(
     std::ostream &,
     const ai_baset &,
@@ -29,10 +35,20 @@ public:
   void make_bottom() final { values.set_to_bottom(); }
   void make_entry() final { values.set_to_top(); }
   bool merge(const constant_set_propagator_domaint &, locationt, locationt);
+  bool is_equal(const constant_set_propagator_domaint &);
+  bool is_equal (locationt, const ai_baset &);
+  void get_dep_exprs(exprt &, std::set<irep_idt> &) const;
+  void set_to(const symbol_exprt &lhs, const std::set<exprt> &rhs_vals)
+  {
+    values.set_to(lhs.get_identifier(), rhs_vals);
+  }
+  bool is_in_loop(locationt , ai_baset &);
+
 
   struct valuest
   {
   public:
+    unsigned int limit = 10;
     valuest():is_bottom(true) { }
 
     // maps variables to constants
@@ -43,6 +59,7 @@ public:
 
     bool merge(const valuest &src);
     bool meet(const valuest &src);
+    bool is_equal(const valuest &src);
 
     void set_to_bottom()
     {
@@ -60,6 +77,20 @@ public:
     void set_to(const symbol_exprt &lhs, const exprt &rhs_val)
     {
       set_to(lhs.get_identifier(), rhs_val);
+    }
+
+    void set_to(const irep_idt &lhs_id, const std::set<exprt> &rhs_vals)
+    {
+      if(rhs_vals.size() > 0){
+        replace_const.expr_map[lhs_id].clear();
+        replace_const.expr_map[lhs_id].insert(rhs_vals.begin(), rhs_vals.end()); // ranadeep
+        is_bottom = false;
+      }
+    }
+
+    void set_to(const symbol_exprt &lhs, const std::set<exprt> &rhs_vals)
+    {
+      set_to(lhs.get_identifier(), rhs_vals);
     }
 
     bool is_constant(const exprt &expr) const;
@@ -117,7 +148,21 @@ public:
     replace(goto_function, ns);
   }
 
+  bool is_cached(const goto_functionst::function_mapt::const_iterator f_it) override;
+  void summarize_from_cache(const goto_functionst::function_mapt::const_iterator f_it) override;
+  void put_new_in_cache(const goto_functionst::function_mapt::const_iterator f_it) override;
+
+  typedef std::unordered_map<irep_idt, std::vector<std::pair<constant_set_propagator_domaint, std::set<exprt>>>, irep_id_hash> state_cachet;
+  state_cachet state_cache;
+
+  typedef std::set<locationt> loophead_listt;
+  loophead_listt loophead_list;
+
 protected:
+  void get_dep_exprs(
+    exprt &,
+    std::set<irep_idt> &);
+
   void replace(
     goto_functionst::goto_functiont &,
     const namespacet &);

@@ -13,6 +13,9 @@ Author: Peter Schrammel
 
 #include "replace_symbol_ext.h"
 
+#include <iostream>
+#include <chrono>
+
 class constant_propagator_domaint:public ai_domain_baset
 {
 public:
@@ -104,8 +107,15 @@ public:
     goto_functionst &goto_functions,
     const namespacet &ns)
   {
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
     operator()(goto_functions, ns);
     replace(goto_functions, ns);
+
+    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+    long elapsed_dur = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+    double elapsed_ = elapsed_dur * 0.000001;
+    std::cout << "constant propagator took " << elapsed_ << "s\n";
   }
 
   constant_propagator_ait(

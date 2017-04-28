@@ -6,7 +6,9 @@ Author: Peter Schrammel, Ranadeep
 
 \*******************************************************************/
 
-// #define DEBUG
+#define DEBUG
+#define LOOPWIDE
+#define INTERPROC
 
 #ifdef DEBUG
 #include <iostream>
@@ -165,7 +167,9 @@ void constant_set_propagator_domaint::transform(
       #ifdef DEBUG
       std::cout << "found loop -- " << from->location_number << "\n";
       #endif
+      #ifdef LOOPWIDE
       static_cast<constant_set_propagator_ait &>(ai).loophead_list.insert(from);
+      #endif
     }
 
     two_way_propagate_rec(g, ns);
@@ -180,7 +184,11 @@ void constant_set_propagator_domaint::transform(
     const code_function_callt &code_function_call = to_code_function_call(from->code);
     const exprt &function=code_function_call.function();
 
+    #ifdef INTERPROC
     if(function.id()==ID_symbol)
+    #else
+    if(0)
+    #endif
     {
       const irep_idt &identifier=to_symbol_expr(function).get_identifier();
 

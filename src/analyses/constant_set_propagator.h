@@ -51,7 +51,8 @@ public:
   struct valuest
   {
   public:
-    unsigned int limit = 10;
+    unsigned int set_size = 10;
+    bool union_map = false;
     valuest():is_bottom(true) { }
 
     // maps variables to constants
@@ -61,6 +62,7 @@ public:
     void output(std::ostream &, const namespacet &) const;
 
     bool merge(const valuest &src);
+    bool merge_union(const valuest &src);
     bool meet(const valuest &src);
     bool is_equal(const valuest &src);
 
@@ -135,12 +137,24 @@ private:
 class constant_set_propagator_ait:public ait<constant_set_propagator_domaint>
 {
 public:
+  unsigned int set_size;
+  // bool merged_context;
+  bool union_map;
   constant_set_propagator_ait(
     goto_functionst &goto_functions,
-    const namespacet &ns)
+    const namespacet &ns,
+    unsigned int set_size,
+    bool merged_context,
+    bool union_map)
   {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
+    this->set_size = set_size;
+    this->merged_context = merged_context;
+    this->union_map = union_map;
+    std::cout << "set_size -- " << set_size << "\n";
+    std::cout << "merged_context -- " << merged_context << "\n";
+    std::cout << "union_map -- " << union_map << "\n";
     operator()(goto_functions, ns);
     replace(goto_functions, ns);
 
@@ -169,6 +183,32 @@ public:
   loophead_listt loophead_list;
 
 protected:
+    // this one creates states, if need be
+  virtual statet &get_state(locationt l) override
+  {
+    auto it = state_map.find(l);
+    if(it == state_map.end())
+    {
+      constant_set_propagator_domaint &s = state_map[l];
+      s.values.set_size = this->set_size;
+      s.values.union_map = this->union_map;
+    }
+    return state_map[l]; // calls default constructor
+  }
+
+  // this one creates states, if need be
+  virtual statet &get_merged_state(locationt l) override
+  {
+    auto it = merged_state_map.find(l);
+    if(it == merged_state_map.end())
+    {
+      constant_set_propagator_domaint &s = merged_state_map[l];
+      s.values.set_size = this->set_size;
+      s.values.union_map = this->union_map;
+    }
+    return merged_state_map[l]; // calls default constructor
+  }
+
   void get_dep_exprs(
     exprt &,
     std::set<irep_idt> &);

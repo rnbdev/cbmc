@@ -177,6 +177,7 @@ public:
   virtual void summarize_from_cache(const goto_functionst::function_mapt::const_iterator f_it){}
   virtual void put_new_in_cache(const goto_functionst::function_mapt::const_iterator f_it){}
   bool body_available = true;
+  bool merged_context = false;
 
 protected:
   // overload to add a factory
@@ -368,9 +369,12 @@ protected:
 
   bool merge(const statet &src, locationt from, locationt to) override
   {
-    statet &dest_ = get_merged_state(to);
-    static_cast<domainT &>(dest_).merge(
-      static_cast<const domainT &>(src), from, to);
+    if(!merged_context)
+    {
+      statet &dest_ = get_merged_state(to);
+      static_cast<domainT &>(dest_).merge(
+        static_cast<const domainT &>(src), from, to);
+    }
     statet &dest=get_state(to);
     return static_cast<domainT &>(dest).merge(
       static_cast<const domainT &>(src), from, to);

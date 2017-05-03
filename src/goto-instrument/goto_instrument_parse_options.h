@@ -62,7 +62,8 @@ Author: Daniel Kroening, kroening@kroening.com
   "(show-natural-loops)(accelerate)(havoc-loops)" \
   "(error-label):(string-abstraction)" \
   "(verbosity):(version)(xml-ui)(json-ui)(show-loops)" \
-  "(accelerate)(constant-propagator)(constant-set-propagator)" \
+  "(accelerate)(constant-propagator)" \
+  "(constant-set-propagator)(constant-set):(merged-context)(union-map)" \
   "(k-induction):(step-case)(base-case)" \
   "(show-call-sequences)(check-call-sequence)" \
   "(interpreter)(show-reaching-definitions)(count-eloc)(list-eloc)" \

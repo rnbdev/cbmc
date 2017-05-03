@@ -76,8 +76,10 @@ void ai_baset::output(
     out << "**** " << i_it->location_number << " "
         << i_it->source_location << "\n";
 
-    // find_state(i_it).output(out, *this, ns);
-    find_merged_state(i_it).output(out, *this, ns); // ranadeep
+    if(merged_context)
+      find_state(i_it).output(out, *this, ns);
+    else
+      find_merged_state(i_it).output(out, *this, ns); // ranadeep
     out << "\n";
     #if 1
     goto_program.output_instruction(ns, identifier, out, i_it);
@@ -125,7 +127,8 @@ void ai_baset::entry_state(const goto_programt &goto_program)
 {
   // The first instruction of 'goto_program' is the entry point
   get_state(goto_program.instructions.begin()).make_entry();
-  get_merged_state(goto_program.instructions.begin()).make_entry();
+  if(!merged_context)
+    get_merged_state(goto_program.instructions.begin()).make_entry();
 }
 
 /*******************************************************************\
@@ -310,7 +313,7 @@ bool ai_baset::visit(
     {
       // initialize state, if necessary
       get_state(to_l);
-      get_merged_state(to_l);
+      if(!merged_context) get_merged_state(to_l);
 
       new_values.transform(l, to_l, *this, ns);
       #ifdef DEBUG
@@ -360,7 +363,7 @@ bool ai_baset::do_function_call(
   #endif
   // initialize state, if necessary
   get_state(l_return);
-  get_merged_state(l_return);
+  if(!merged_context) get_merged_state(l_return);
 
   const goto_functionst::goto_functiont &goto_function=
     f_it->second;
@@ -394,19 +397,24 @@ bool ai_baset::do_function_call(
 
     bool new_data=false;
 
-    forall_goto_program_instructions(i_it, f_it->second.body)
-        get_state(i_it).make_bottom();
+    if(!merged_context) { // if not merged context, reset function contexts
+      forall_goto_program_instructions(i_it, f_it->second.body)
+          get_state(i_it).make_bottom();
+    }
 
     // merge the new stuff
     if(merge(*tmp_state, l_call, l_begin))
       new_data=true;
 
+    if(!merged_context)
+    {
     #ifdef DEBUG
     std::cout << "checking for cache for this\n";
     get_state(l_begin).output(std::cout, *this, ns);
     #endif
     // check if stored before
     cached = is_cached(f_it);
+    }
 
     // if not end skip to end
     if(!cached)
@@ -421,12 +429,6 @@ bool ai_baset::do_function_call(
     // do we need to do/re-do the fixedpoint of the body?
     if(new_data)
       fixedpoint(goto_function.body, goto_functions, ns);
-    }
-    else
-    {
-    #ifdef DEBUG
-      std::cout << "found cached context\n";
-    #endif
     }
   }
 
@@ -447,7 +449,7 @@ bool ai_baset::do_function_call(
     std::unique_ptr<statet> tmp_state(make_temporary_state(get_state(l_end)));
     tmp_state->transform(l_end, l_return, *this, ns);
 
-    if(!cached) {
+    if(!cached && !merged_context) {
       // store it
       put_new_in_cache(f_it);
     }

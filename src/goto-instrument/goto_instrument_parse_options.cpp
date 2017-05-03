@@ -1157,9 +1157,16 @@ void goto_instrument_parse_optionst::instrument_goto_program()
   {
     do_indirect_call_and_rtti_removal();
 
+    unsigned int set_size = 0;
+    if(cmdline.isset("constant-set"))
+      set_size = std::stoi(cmdline.get_value("constant-set"));
+    bool merged_context, union_map;
+    merged_context = cmdline.isset("merged-context");
+    union_map = cmdline.isset("union-map");
+
     status() << "Propagating Sets of Constants" << eom;
 
-    constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns);
+    constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns, set_size, merged_context, union_map);
 
     remove_skip(goto_functions);
   }

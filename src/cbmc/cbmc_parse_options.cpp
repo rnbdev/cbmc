@@ -903,8 +903,15 @@ bool cbmc_parse_optionst::process_goto_program(
 
     if(cmdline.isset("constant-set-propagator"))
     {
+      unsigned int set_size = 0;
+      if(cmdline.isset("constant-set"))
+        set_size = std::stoi(cmdline.get_value("constant-set"));
+      bool merged_context, union_map;
+      merged_context = cmdline.isset("merged-context");
+      union_map = cmdline.isset("union-map");
+      
       status() << "Propagating Constants" << eom;
-      constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns);
+      constant_set_propagator_ait constant_set_propagator_ai(goto_functions, ns, set_size, merged_context, union_map);
       remove_skip(goto_functions);
     }
 

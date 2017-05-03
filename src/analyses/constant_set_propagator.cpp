@@ -6,7 +6,7 @@ Author: Peter Schrammel, Ranadeep
 
 \*******************************************************************/
 
-#define DEBUG
+// #define DEBUG
 #define LOOPWIDE
 #define INTERPROC
 
@@ -281,7 +281,7 @@ void constant_set_propagator_domaint::transform(
   }
   else if(from->is_end_function()){
     #ifdef DEBUG
-      std::cout << "Found a end_function\n";
+      std::cout << "Found an end_function\n";
       std::cout << "to location -- " << from_expr(ns, "", to->code) << "\n";
     #endif
     locationt last_call_site = ai.get_top_function_call_location_from_stack();
@@ -693,7 +693,7 @@ bool constant_set_propagator_domaint::valuest::merge(const valuest &src)
       }
       else // incomparable
       {
-        if(new_set.size() > limit)
+        if(0 < set_size && set_size < new_set.size())
         {
           to_top.push_back(c_it);
         }
@@ -739,7 +739,113 @@ bool constant_set_propagator_domaint::valuest::merge(const valuest &src)
     replace_const.expr_map.erase(e);
   }
 
+  for(auto e: replace_const.expr_map) {
+    assert(e.second.size() > 0);
+  }
 
+#ifdef DEBUG
+  std::cout << "merged: " << changed << '\n';
+#endif
+
+  return changed;
+}
+
+
+
+/*******************************************************************\
+
+Function: constant_set_propagator_domaint::valuest::merge_union
+
+  Inputs:
+
+ Outputs: Return true if "this" has changed.
+
+ Purpose: join
+
+\*******************************************************************/
+
+bool constant_set_propagator_domaint::valuest::merge_union(const valuest &src)
+{
+  // nothing to do
+  if(src.is_bottom)
+    return false;
+
+  // just copy
+  if(is_bottom)
+  {
+    replace_const = src.replace_const;
+    is_bottom = src.is_bottom;
+    return true;
+  }
+
+  bool changed = false;
+
+
+  // set everything to top that is not in src
+  for(replace_symbol_sett::expr_mapt::const_iterator
+        it=replace_const.expr_map.begin();
+      it!=replace_const.expr_map.end();
+      ) // no it++
+  {
+    if(src.replace_const.expr_map.find(it->first) ==
+       src.replace_const.expr_map.end())
+    {
+      //cannot use set_to_top here
+      replace_const.expr_map.erase(it++);
+      changed = true;
+    }
+    else ++it;
+  }
+
+  for(replace_symbol_sett::expr_mapt::const_iterator
+      it=src.replace_const.expr_map.begin();
+      it!=src.replace_const.expr_map.end();
+      ++it)
+  {
+    replace_symbol_sett::expr_mapt::iterator
+      c_it = replace_const.expr_map.find(it->first);
+
+    if(c_it != replace_const.expr_map.end())
+    {
+      std::set<exprt> new_set;
+      std::set_union(it->second.begin(), it->second.end(),
+                     c_it->second.begin(), c_it->second.end(),
+                     std::inserter(new_set, new_set.begin()));
+
+      unsigned int new_elems, new_elems_c;
+      new_elems = new_set.size() - it->second.size();
+      new_elems_c = new_set.size() - c_it->second.size();
+      if(new_elems == 0 && new_elems_c == 0) // equal
+      {
+      }
+      else if(new_elems_c == 0 && new_elems > 0) // superset
+      {
+      }
+      else if(new_elems == 0 && new_elems_c > 0) // subset
+      {
+        c_it->second = it->second;
+        changed = true;
+      }
+      else // incomparable
+      {
+        if(0 < set_size && set_size < new_set.size())
+        {
+          assert(c_it->first == it->first);
+          changed=set_to_top(c_it->first);
+        }
+        else
+        {
+          c_it->second = new_set;
+          changed = true;
+        }
+        
+      }
+    }
+  }
+
+  for(auto e: replace_const.expr_map) {
+    assert(e.second.size() > 0);
+  }
 
 #ifdef DEBUG
   std::cout << "merged: " << changed << '\n';
@@ -807,6 +913,10 @@ bool constant_set_propagator_domaint::valuest::meet(const valuest &src)  // rana
     }
   }
 
+#ifdef DEBUG
+  std::cout << "meet: " << changed << '\n';
+#endif
+
   return changed;
 }
 
@@ -852,7 +962,8 @@ bool constant_set_propagator_domaint::merge(
   locationt from,
   locationt to)
 {
-  return values.merge(other.values);
+  if(values.union_map) return values.merge_union(other.values);
+  else return values.merge(other.values);
 }
 
 /*******************************************************************\
@@ -978,10 +1089,21 @@ void constant_set_propagator_ait::replace(
   goto_programt &body = goto_function.body;
   Forall_goto_program_instructions(it, body)
   {
-    state_mapt::iterator s_it = merged_state_map.find(it);
+    state_mapt::iterator s_it;
+    if(merged_context)
+    {
+      s_it = state_map.find(it);
 
-    if(s_it == merged_state_map.end())
-      continue;
+      if(s_it == state_map.end())
+        continue;
+    }
+    else
+    {
+      s_it = merged_state_map.find(it);
+
+      if(s_it == merged_state_map.end())
+        continue;
+    }
 
     replace_types_rec(s_it->second.values.replace_const, it->code);
     replace_types_rec(s_it->second.values.replace_const, it->guard);
@@ -1040,10 +1162,10 @@ void constant_set_propagator_ait::replace(
       for(auto e : s_it->second.values.replace_const.expr_map) {
         std::set<irep_idt>::iterator it = dep_exprs_set.find(e.first);
         if(it == dep_exprs_set.end()) continue;
+        if(e.second.size() < 2) continue;
         exprt symb = ns.lookup(e.first).symbol_expr();
         exprt or_st;
         bool empty_or = true;
-        if(e.second.size() < 2) continue;
         for(auto e1 : e.second) {
           if(empty_or) {
             or_st = equal_exprt(symb, e1);
@@ -1128,7 +1250,14 @@ void constant_set_propagator_ait::summarize_from_cache(const goto_functionst::fu
     }
   }
   std::unique_ptr<statet> tmp_state(make_temporary_state(get_state(l_begin)));
+  if(matched_context.second.size() > 0)
+  {
   static_cast<constant_set_propagator_domaint &>(*tmp_state).set_to(to_symbol_expr(lhs), matched_context.second);
+  }
+  else
+  {
+    static_cast<constant_set_propagator_domaint &>(*tmp_state).values.set_to_top(to_symbol_expr(lhs));
+  }
 
   merge(*tmp_state, l_begin, l_end);
     #ifdef DEBUG
@@ -1147,9 +1276,9 @@ void constant_set_propagator_ait::put_new_in_cache(const goto_functionst::functi
   locationt l_begin = f_it->second.body.instructions.begin();
   locationt l_end = --f_it->second.body.instructions.end();
   std::pair<constant_set_propagator_domaint, std::set<exprt>> p;
-    state_mapt::iterator s_it = state_map.find(l_begin);
-    if(s_it == state_map.end()) return;
-  p.first = s_it->second;
-  p.second = s_it->second.values.replace_const.expr_map[to_symbol_expr(lhs).get_identifier()];
+  p.first = state_map[l_begin];
+  auto it = state_map[l_end].values.replace_const.expr_map.find(to_symbol_expr(lhs).get_identifier());
+  if(it != state_map[l_end].values.replace_const.expr_map.end())
+    p.second = it->second;
   state_cache[f_it->first].push_back(p);
 }
